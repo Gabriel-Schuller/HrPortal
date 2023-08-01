@@ -1,0 +1,233 @@
+
+
+@page "/holidays"
+
+@attribute [Authorize(HrPortalPermissions.Holidays.Default)]
+@using HrPortal.Holidays
+@using HrPortal.Localization
+@using HrPortal.Shared
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
+@using Microsoft.AspNetCore.Components.Web
+@using Blazorise
+@using Blazorise.Components
+@using Blazorise.DataGrid
+@using Volo.Abp.BlazoriseUI
+@using Volo.Abp.BlazoriseUI.Components
+@using Volo.Abp.ObjectMapping
+@using Volo.Abp.AspNetCore.Components.Messages
+@using Volo.Abp.AspNetCore.Components.Web.Theming.Layout
+@using HrPortal.Permissions
+
+
+
+@inherits HrPortalComponentBase
+@inject IHolidaysAppService HolidaysAppService
+@inject IUiMessageService UiMessageService
+
+
+
+@* ************************* PAGE HEADER ************************* *@
+<PageHeader Title="@L["Holidays"]" BreadcrumbItems="BreadcrumbItems" Toolbar="Toolbar">
+
+</PageHeader>
+
+@* ************************* SEARCH ************************* *@
+<Card>
+    <CardBody>
+        <Form id="HolidaySearchForm" class="mb-3">
+            <Addons>
+                <Addon AddonType="AddonType.Body">
+                    <TextEdit @bind-Text="@Filter.FilterText"
+                              Autofocus="true"
+                              Placeholder="@L["Search"]">
+                    </TextEdit>
+                </Addon>
+                <Addon AddonType="AddonType.End">
+                    <SubmitButton Form="HolidaySearchForm" Clicked="GetHolidaysAsync">
+                        <Icon Name="IconName.Search" Class="me-1"></Icon>@L["Search"]
+                    </SubmitButton>
+                </Addon>
+            </Addons>
+        </Form>
+    </CardBody>
+</Card>
+
+@* ************************* DATA GRID ************************* *@
+<Card>
+    <CardBody>
+        <DataGrid TItem="HolidayDto"
+                  Data="HolidayList"
+                  ReadData="OnDataGridReadAsync"
+                  TotalItems="TotalCount"
+                  ShowPager="true"
+                  Responsive="true"
+                  PageSize="PageSize">
+            <DataGridColumns>
+                <DataGridEntityActionsColumn TItem="HolidayDto" @ref="@EntityActionsColumn">
+                    <DisplayTemplate>
+                        <EntityActions TItem="HolidayDto" EntityActionsColumn="@EntityActionsColumn">
+                            <EntityAction TItem="HolidayDto"
+                                          Visible="@CanEditHoliday"
+                                          Clicked="async () => await OpenEditHolidayModalAsync(context)"
+                                          Text="@L["Edit"]"></EntityAction>
+                            <EntityAction TItem="HolidayDto"
+                                          Visible="@CanDeleteHoliday"
+                                          Clicked="() => DeleteHolidayAsync(context)"
+                                          ConfirmationMessage="@(()=> L["DeleteConfirmationMessage"])"
+                                          Text="@L["Delete"]"></EntityAction>
+                        </EntityActions>
+                    </DisplayTemplate>
+                </DataGridEntityActionsColumn>
+               
+              <DataGridColumn TItem="HolidayDto"
+                      Field="DaysRemainedLastYear"
+                      Caption="@L["DaysRemainedLastYear"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="HolidayDto"
+                      Field="DaysUsedThisYear"
+                      Caption="@L["DaysUsedThisYear"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="HolidayDto"
+                      Field="DaysRemained"
+                      Caption="@L["DaysRemained"]">
+              </DataGridColumn>
+
+            </DataGridColumns>
+        </DataGrid>
+    </CardBody>
+</Card>
+
+@* ************************* CREATE MODAL ************************* *@
+<Modal @ref="CreateHolidayModal" Closing="@CreateHolidayModal.CancelClosingModalWhenFocusLost">
+    <ModalContent Centered="true">
+        <Form id="CreateHolidayForm">
+            <ModalHeader>
+                <ModalTitle>@L["NewHoliday"]</ModalTitle>
+                <CloseButton Clicked="CloseCreateHolidayModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@NewHolidayValidations"
+                            Mode="ValidationMode.Auto"
+                            Model="@NewHoliday"
+                            ValidateOnLoad="false">
+                     
+                    
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["DaysRemainedLastYear"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@NewHoliday.DaysRemainedLastYear"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["DaysUsedThisYear"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@NewHoliday.DaysUsedThisYear"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["DaysRemained"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@NewHoliday.DaysRemained"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    
+                    
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary"
+                        Clicked="CloseCreateHolidayModalAsync">
+                    @L["Cancel"]
+                </Button>
+                <SubmitButton Form="CreateHolidayForm" Clicked="CreateHolidayAsync" />
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+@* ************************* EDIT MODAL ************************* *@
+<Modal @ref="EditHolidayModal" Closing="@EditHolidayModal.CancelClosingModalWhenFocusLost">
+    <ModalContent Centered="true">
+        <Form id="EditHolidayForm">
+            <ModalHeader>
+                <ModalTitle>@L["Update"]</ModalTitle>
+                <CloseButton Clicked="CloseEditHolidayModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@EditingHolidayValidations"
+                            Mode="ValidationMode.Auto"
+                            Model="@EditingHoliday"
+                            ValidateOnLoad="false">
+                     
+                    
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["DaysRemainedLastYear"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@EditingHoliday.DaysRemainedLastYear"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["DaysUsedThisYear"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@EditingHoliday.DaysUsedThisYear"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["DaysRemained"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@EditingHoliday.DaysRemained"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    
+                    
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary"
+                        Clicked="CloseEditHolidayModalAsync">
+                    @L["Cancel"]
+                </Button>
+                <SubmitButton Form="CreateHolidayForm" Clicked="UpdateHolidayAsync" />
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>

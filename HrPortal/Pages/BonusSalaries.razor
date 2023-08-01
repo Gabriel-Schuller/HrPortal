@@ -1,0 +1,206 @@
+
+@page "/bonus-salaries"
+
+@attribute [Authorize(HrPortalPermissions.BonusSalaries.Default)]
+@using HrPortal.BonusSalaries
+@using HrPortal.Localization
+@using HrPortal.Shared
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
+@using Microsoft.AspNetCore.Components.Web
+@using Blazorise
+@using Blazorise.Components
+@using Blazorise.DataGrid
+@using Volo.Abp.BlazoriseUI
+@using Volo.Abp.BlazoriseUI.Components
+@using Volo.Abp.ObjectMapping
+@using Volo.Abp.AspNetCore.Components.Messages
+@using Volo.Abp.AspNetCore.Components.Web.Theming.Layout
+@using HrPortal.Permissions
+
+
+
+@inherits HrPortalComponentBase
+@inject IBonusSalariesAppService BonusSalariesAppService
+@inject IUiMessageService UiMessageService
+
+
+
+@* ************************* PAGE HEADER ************************* *@
+<PageHeader Title="@L["BonusSalaries"]" BreadcrumbItems="BreadcrumbItems" Toolbar="Toolbar">
+
+</PageHeader>
+
+@* ************************* SEARCH ************************* *@
+<Card>
+    <CardBody>
+        <Form id="BonusSalarySearchForm" class="mb-3">
+            <Addons>
+                <Addon AddonType="AddonType.Body">
+                    <TextEdit @bind-Text="@Filter.FilterText"
+                              Autofocus="true"
+                              Placeholder="@L["Search"]">
+                    </TextEdit>
+                </Addon>
+                <Addon AddonType="AddonType.End">
+                    <SubmitButton Form="BonusSalarySearchForm" Clicked="GetBonusSalariesAsync">
+                        <Icon Name="IconName.Search" Class="me-1"></Icon>@L["Search"]
+                    </SubmitButton>
+                </Addon>
+            </Addons>
+        </Form>
+    </CardBody>
+</Card>
+
+@* ************************* DATA GRID ************************* *@
+<Card>
+    <CardBody>
+        <DataGrid TItem="BonusSalaryDto"
+                  Data="BonusSalaryList"
+                  ReadData="OnDataGridReadAsync"
+                  TotalItems="TotalCount"
+                  ShowPager="true"
+                  Responsive="true"
+                  PageSize="PageSize">
+            <DataGridColumns>
+                <DataGridEntityActionsColumn TItem="BonusSalaryDto" @ref="@EntityActionsColumn">
+                    <DisplayTemplate>
+                        <EntityActions TItem="BonusSalaryDto" EntityActionsColumn="@EntityActionsColumn">
+                            <EntityAction TItem="BonusSalaryDto"
+                                          Visible="@CanEditBonusSalary"
+                                          Clicked="async () => await OpenEditBonusSalaryModalAsync(context)"
+                                          Text="@L["Edit"]"></EntityAction>
+                            <EntityAction TItem="BonusSalaryDto"
+                                          Visible="@CanDeleteBonusSalary"
+                                          Clicked="() => DeleteBonusSalaryAsync(context)"
+                                          ConfirmationMessage="@(()=> L["DeleteConfirmationMessage"])"
+                                          Text="@L["Delete"]"></EntityAction>
+                        </EntityActions>
+                    </DisplayTemplate>
+                </DataGridEntityActionsColumn>
+               
+              <DataGridColumn TItem="BonusSalaryDto"
+                      Field="Ammount"
+                      Caption="@L["Ammount"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="BonusSalaryDto"
+                      Field="AppliedDate"
+                      Caption="@L["AppliedDate"]">
+                  <DisplayTemplate>
+                        @context.AppliedDate.ToShortDateString()
+                  </DisplayTemplate>
+              </DataGridColumn>
+
+            </DataGridColumns>
+        </DataGrid>
+    </CardBody>
+</Card>
+
+@* ************************* CREATE MODAL ************************* *@
+<Modal @ref="CreateBonusSalaryModal" Closing="@CreateBonusSalaryModal.CancelClosingModalWhenFocusLost">
+    <ModalContent Centered="true">
+        <Form id="CreateBonusSalaryForm">
+            <ModalHeader>
+                <ModalTitle>@L["NewBonusSalary"]</ModalTitle>
+                <CloseButton Clicked="CloseCreateBonusSalaryModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@NewBonusSalaryValidations"
+                            Mode="ValidationMode.Auto"
+                            Model="@NewBonusSalary"
+                            ValidateOnLoad="false">
+                     
+                    
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["Ammount"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@NewBonusSalary.Ammount"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["AppliedDate"]</FieldLabel>
+                            <DateEdit TValue="DateTime" InputMode="DateInputMode.DateTime" @bind-Date="@NewBonusSalary.AppliedDate" >
+                               <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </DateEdit>
+                        </Field>
+                    </Validation>
+
+
+                    
+                    
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary"
+                        Clicked="CloseCreateBonusSalaryModalAsync">
+                    @L["Cancel"]
+                </Button>
+                <SubmitButton Form="CreateBonusSalaryForm" Clicked="CreateBonusSalaryAsync" />
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+@* ************************* EDIT MODAL ************************* *@
+<Modal @ref="EditBonusSalaryModal" Closing="@EditBonusSalaryModal.CancelClosingModalWhenFocusLost">
+    <ModalContent Centered="true">
+        <Form id="EditBonusSalaryForm">
+            <ModalHeader>
+                <ModalTitle>@L["Update"]</ModalTitle>
+                <CloseButton Clicked="CloseEditBonusSalaryModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@EditingBonusSalaryValidations"
+                            Mode="ValidationMode.Auto"
+                            Model="@EditingBonusSalary"
+                            ValidateOnLoad="false">
+                     
+                    
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["Ammount"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@EditingBonusSalary.Ammount"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["AppliedDate"]</FieldLabel>
+                            <DateEdit TValue="DateTime" InputMode="DateInputMode.DateTime" @bind-Date="@EditingBonusSalary.AppliedDate" >
+                               <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </DateEdit>
+                        </Field>
+                    </Validation>
+
+
+                    
+                    
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary"
+                        Clicked="CloseEditBonusSalaryModalAsync">
+                    @L["Cancel"]
+                </Button>
+                <SubmitButton Form="CreateBonusSalaryForm" Clicked="UpdateBonusSalaryAsync" />
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>

@@ -1,0 +1,495 @@
+
+
+@page "/employees"
+
+@attribute [Authorize(HrPortalPermissions.Employees.Default)]
+@using HrPortal.Employees
+@using HrPortal.Localization
+@using HrPortal.Shared
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
+@using Microsoft.AspNetCore.Components.Web
+@using Blazorise
+@using Blazorise.Components
+@using Blazorise.DataGrid
+@using Volo.Abp.BlazoriseUI
+@using Volo.Abp.BlazoriseUI.Components
+@using Volo.Abp.ObjectMapping
+@using Volo.Abp.AspNetCore.Components.Messages
+@using Volo.Abp.AspNetCore.Components.Web.Theming.Layout
+@using HrPortal.Permissions
+
+
+
+@inherits HrPortalComponentBase
+@inject IEmployeesAppService EmployeesAppService
+@inject IUiMessageService UiMessageService
+
+
+
+@* ************************* PAGE HEADER ************************* *@
+<PageHeader Title="@L["Employees"]" BreadcrumbItems="BreadcrumbItems" Toolbar="Toolbar">
+
+</PageHeader>
+
+@* ************************* SEARCH ************************* *@
+<Card>
+    <CardBody>
+        <Form id="EmployeeSearchForm" class="mb-3">
+            <Addons>
+                <Addon AddonType="AddonType.Body">
+                    <TextEdit @bind-Text="@Filter.FilterText"
+                              Autofocus="true"
+                              Placeholder="@L["Search"]">
+                    </TextEdit>
+                </Addon>
+                <Addon AddonType="AddonType.End">
+                    <SubmitButton Form="EmployeeSearchForm" Clicked="GetEmployeesAsync">
+                        <Icon Name="IconName.Search" Class="me-1"></Icon>@L["Search"]
+                    </SubmitButton>
+                </Addon>
+            </Addons>
+        </Form>
+    </CardBody>
+</Card>
+
+@* ************************* DATA GRID ************************* *@
+<Card>
+    <CardBody>
+        <DataGrid TItem="EmployeeDto"
+                  Data="EmployeeList"
+                  ReadData="OnDataGridReadAsync"
+                  TotalItems="TotalCount"
+                  ShowPager="true"
+                  Responsive="true"
+                  PageSize="PageSize">
+            <DataGridColumns>
+                <DataGridEntityActionsColumn TItem="EmployeeDto" @ref="@EntityActionsColumn">
+                    <DisplayTemplate>
+                        <EntityActions TItem="EmployeeDto" EntityActionsColumn="@EntityActionsColumn">
+                            <EntityAction TItem="EmployeeDto"
+                                          Visible="@CanEditEmployee"
+                                          Clicked="async () => await OpenEditEmployeeModalAsync(context)"
+                                          Text="@L["Edit"]"></EntityAction>
+                            <EntityAction TItem="EmployeeDto"
+                                          Visible="@CanDeleteEmployee"
+                                          Clicked="() => DeleteEmployeeAsync(context)"
+                                          ConfirmationMessage="@(()=> L["DeleteConfirmationMessage"])"
+                                          Text="@L["Delete"]"></EntityAction>
+                        </EntityActions>
+                    </DisplayTemplate>
+                </DataGridEntityActionsColumn>
+               
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="TotalNumberOfDaysThisYear"
+                      Caption="@L["TotalNumberOfDaysThisYear"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="Name"
+                      Caption="@L["Name"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="CNP"
+                      Caption="@L["CNP"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="InformationsCI"
+                      Caption="@L["InformationsCI"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="Rezidence"
+                      Caption="@L["Rezidence"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="SendingAddress"
+                      Caption="@L["SendingAddress"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="RelevancePhoneNumber"
+                      Caption="@L["RelevancePhoneNumber"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="PersonalPhoneNumber"
+                      Caption="@L["PersonalPhoneNumber"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="HiringDate"
+                      Caption="@L["HiringDate"]">
+                  <DisplayTemplate>
+                        @context.HiringDate.ToShortDateString()
+                  </DisplayTemplate>
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="BirthDay"
+                      Caption="@L["BirthDay"]">
+                  <DisplayTemplate>
+                        @context.BirthDay.ToShortDateString()
+                  </DisplayTemplate>
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="StartingSalary"
+                      Caption="@L["StartingSalary"]">
+              </DataGridColumn>
+
+              <DataGridColumn TItem="EmployeeDto"
+                      Field="PaysProgrammerTaxes"
+                      Caption="@L["PaysProgrammerTaxes"]">
+                    <DisplayTemplate>
+                        @if (context.PaysProgrammerTaxes)
+                        {
+                            <Icon TextColor="TextColor.Success" Name="@IconName.Check" />
+                        }
+                        else
+                        {
+                            <Icon TextColor="TextColor.Danger" Name="@IconName.Times" />
+                        }
+                    </DisplayTemplate>
+              </DataGridColumn>
+
+
+            </DataGridColumns>
+        </DataGrid>
+    </CardBody>
+</Card>
+
+@* ************************* CREATE MODAL ************************* *@
+<Modal @ref="CreateEmployeeModal" Closing="@CreateEmployeeModal.CancelClosingModalWhenFocusLost">
+    <ModalContent Centered="true">
+        <Form id="CreateEmployeeForm">
+            <ModalHeader>
+                <ModalTitle>@L["NewEmployee"]</ModalTitle>
+                <CloseButton Clicked="CloseCreateEmployeeModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@NewEmployeeValidations"
+                            Mode="ValidationMode.Auto"
+                            Model="@NewEmployee"
+                            ValidateOnLoad="false">
+                     
+                    
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["TotalNumberOfDaysThisYear"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@NewEmployee.TotalNumberOfDaysThisYear"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["Name"] *</FieldLabel>
+                            <TextEdit @bind-Text="@NewEmployee.Name"  >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["CNP"] *</FieldLabel>
+                            <TextEdit @bind-Text="@NewEmployee.CNP" MaxLength="EmployeeConsts.CNPMaxLength" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["InformationsCI"]</FieldLabel>
+                            <TextEdit @bind-Text="@NewEmployee.InformationsCI"  >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["Rezidence"]</FieldLabel>
+                            <TextEdit @bind-Text="@NewEmployee.Rezidence"  >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["SendingAddress"]</FieldLabel>
+                            <TextEdit @bind-Text="@NewEmployee.SendingAddress"  >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["RelevancePhoneNumber"]</FieldLabel>
+                            <TextEdit @bind-Text="@NewEmployee.RelevancePhoneNumber" MaxLength="EmployeeConsts.RelevancePhoneNumberMaxLength" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["PersonalPhoneNumber"]</FieldLabel>
+                            <TextEdit @bind-Text="@NewEmployee.PersonalPhoneNumber" MaxLength="EmployeeConsts.PersonalPhoneNumberMaxLength" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["HiringDate"]</FieldLabel>
+                            <DateEdit TValue="DateTime" InputMode="DateInputMode.DateTime" @bind-Date="@NewEmployee.HiringDate" >
+                               <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </DateEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["BirthDay"]</FieldLabel>
+                            <DateEdit TValue="DateTime" InputMode="DateInputMode.DateTime" @bind-Date="@NewEmployee.BirthDay" >
+                               <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </DateEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["StartingSalary"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@NewEmployee.StartingSalary"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Field>
+                        <Check TValue="bool" @bind-Checked="@NewEmployee.PaysProgrammerTaxes" >@L["PaysProgrammerTaxes"]</Check>
+                    </Field>
+
+                    
+                    
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary"
+                        Clicked="CloseCreateEmployeeModalAsync">
+                    @L["Cancel"]
+                </Button>
+                <SubmitButton Form="CreateEmployeeForm" Clicked="CreateEmployeeAsync" />
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+@* ************************* EDIT MODAL ************************* *@
+<Modal @ref="EditEmployeeModal" Closing="@EditEmployeeModal.CancelClosingModalWhenFocusLost">
+    <ModalContent Centered="true">
+        <Form id="EditEmployeeForm">
+            <ModalHeader>
+                <ModalTitle>@L["Update"]</ModalTitle>
+                <CloseButton Clicked="CloseEditEmployeeModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@EditingEmployeeValidations"
+                            Mode="ValidationMode.Auto"
+                            Model="@EditingEmployee"
+                            ValidateOnLoad="false">
+                     
+                    
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["TotalNumberOfDaysThisYear"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@EditingEmployee.TotalNumberOfDaysThisYear"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["Name"] *</FieldLabel>
+                            <TextEdit @bind-Text="@EditingEmployee.Name"  >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["CNP"] *</FieldLabel>
+                            <TextEdit @bind-Text="@EditingEmployee.CNP" MaxLength="EmployeeConsts.CNPMaxLength" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["InformationsCI"]</FieldLabel>
+                            <TextEdit @bind-Text="@EditingEmployee.InformationsCI"  >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["Rezidence"]</FieldLabel>
+                            <TextEdit @bind-Text="@EditingEmployee.Rezidence"  >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["SendingAddress"]</FieldLabel>
+                            <TextEdit @bind-Text="@EditingEmployee.SendingAddress"  >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["RelevancePhoneNumber"]</FieldLabel>
+                            <TextEdit @bind-Text="@EditingEmployee.RelevancePhoneNumber" MaxLength="EmployeeConsts.RelevancePhoneNumberMaxLength" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["PersonalPhoneNumber"]</FieldLabel>
+                            <TextEdit @bind-Text="@EditingEmployee.PersonalPhoneNumber" MaxLength="EmployeeConsts.PersonalPhoneNumberMaxLength" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </TextEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["HiringDate"]</FieldLabel>
+                            <DateEdit TValue="DateTime" InputMode="DateInputMode.DateTime" @bind-Date="@EditingEmployee.HiringDate" >
+                               <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </DateEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["BirthDay"]</FieldLabel>
+                            <DateEdit TValue="DateTime" InputMode="DateInputMode.DateTime" @bind-Date="@EditingEmployee.BirthDay" >
+                               <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </DateEdit>
+                        </Field>
+                    </Validation>
+
+
+                    <Validation>
+                        <Field>
+                            <FieldLabel>@L["StartingSalary"]</FieldLabel>
+                            <NumericPicker TValue="int" @bind-Value="@EditingEmployee.StartingSalary"  Decimals="0" >
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                             </NumericPicker>
+                        </Field>
+                     </Validation>
+
+
+                    <Field>
+                        <Check TValue="bool" @bind-Checked="@EditingEmployee.PaysProgrammerTaxes" >@L["PaysProgrammerTaxes"]</Check>
+                    </Field>
+
+                    
+                    
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary"
+                        Clicked="CloseEditEmployeeModalAsync">
+                    @L["Cancel"]
+                </Button>
+                <SubmitButton Form="CreateEmployeeForm" Clicked="UpdateEmployeeAsync" />
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
